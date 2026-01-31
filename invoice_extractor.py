@@ -100,21 +100,71 @@ class IILPageExtractor:
             self.dest_entry.insert(0, folder)
     
     def extract_date(self, text):
+        """Extract date from text - handles multiple formats, case-insensitive"""
+        
+        # Month mapping (case-insensitive)
+        months = {
+            'jan': 1, 'january': 1,
+            'feb': 2, 'february': 2,
+            'mar': 3, 'march': 3,
+            'apr': 4, 'april': 4,
+            'may': 5,
+            'jun': 6, 'june': 6,
+            'jul': 7, 'july': 7,
+            'aug': 8, 'august': 8,
+            'sep': 9, 'sept': 9, 'september': 9,
+            'oct': 10, 'october': 10,
+            'nov': 11, 'november': 11,
+            'dec': 12, 'december': 12
+        }
+        
         patterns = [
+            # 01-JAN-2026, 01-Jan-2026, 01-jan-2026
+            r'(\d{1,2})[-\s](jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[-\s](\d{4})',
+            # JAN-01-2026, Jan-01-2026
+            r'(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[-\s](\d{1,2})[-\s](\d{4})',
+            # 01 January 2026, 01 Jan 2026
+            r'(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{4})',
+            # DD/MM/YYYY
             r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})',
+            # YYYY-MM-DD
             r'(\d{4})[/-](\d{1,2})[/-](\d{1,2})',
         ]
+        
         for pattern in patterns:
-            match = re.search(pattern, text)
+            match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 try:
                     groups = match.groups()
-                    if len(groups[0]) == 4:
+                    
+                    # Check if first group is a month name
+                    if groups[0].lower() in months:
+                        # JAN-01-2026 format
+                        month = months[groups[0].lower()]
+                        day = int(groups[1])
+                        year = int(groups[2])
+                        return datetime(year, month, day)
+                    
+                    # Check if second group is a month name
+                    elif len(groups) > 1 and groups[1].lower() in months:
+                        # 01-JAN-2026 format
+                        day = int(groups[0])
+                        month = months[groups[1].lower()]
+                        year = int(groups[2])
+                        return datetime(year, month, day)
+                    
+                    # Numeric formats
+                    elif len(groups[0]) == 4:
+                        # YYYY-MM-DD
                         return datetime(int(groups[0]), int(groups[1]), int(groups[2]))
                     else:
+                        # DD/MM/YYYY
                         return datetime(int(groups[2]), int(groups[1]), int(groups[0]))
-                except:
+                
+                except Exception as e:
+                    print(f"Date parse error: {e}")
                     continue
+        
         return None
     
     def extract_pages(self):
@@ -152,56 +202,4 @@ class IILPageExtractor:
         
         pdf_files = [f for f in os.listdir(source) if f.lower().endswith('.pdf')]
         
-        if not pdf_files:
-            messagebox.showerror("Error", "No PDFs found!")
-            return
-        
-        total = len(pdf_files)
-        extracted = 0
-        
-        self.progress['maximum'] = total
-        output_pdf = fitz.open()
-        
-        for idx, filename in enumerate(pdf_files):
-            self.progress['value'] = idx + 1
-            self.status.config(text=f"Scanning {idx+1}/{total}")
-            self.root.update()
-            
-            try:
-                doc = fitz.open(os.path.join(source, filename))
-                
-                for page_num in range(len(doc)):
-                    page = doc[page_num]
-                    text = page.get_text()
-                    
-                    if search in text.lower():
-                        if date_from or date_to:
-                            page_date = self.extract_date(text)
-                            if page_date:
-                                if date_from and page_date < date_from:
-                                    continue
-                                if date_to and page_date > date_to:
-                                    continue
-                        
-                        output_pdf.insert_pdf(doc, from_page=page_num, to_page=page_num)
-                        extracted += 1
-                
-                doc.close()
-            except Exception as e:
-                print(f"Error: {e}")
-        
-        if extracted > 0:
-            output_name = f"{search.replace(' ', '_')}_extracted.pdf"
-            output_pdf.save(os.path.join(dest, output_name))
-            messagebox.showinfo("Success", f"Extracted {extracted} pages!\n\nSaved as: {output_name}")
-        else:
-            messagebox.showinfo("No Match", "No matching pages found!")
-        
-        output_pdf.close()
-        self.progress['value'] = 0
-        self.status.config(text="Ready")
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = IILPageExtractor(root)
-    root.mainloop()
+        if not pdf*
